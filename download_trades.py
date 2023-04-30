@@ -1,6 +1,6 @@
 import os
 import polars as pl
-import datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 import re
 import requests
@@ -21,32 +21,32 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
     assert symbol is not None
 
     _symbol = symbol.upper()
-    _d_today = datetime.date.today()
+    _d_today = date.today()
 
     # スキャン開始日をBinanceでBTCUSDTが上場した日にする
-    _d_cursor = datetime.date(year = 2019, month = 9, day = 8)
+    _d_cursor = date(year = 2019, month = 9, day = 8)
     if symbol in target_symbols:
         _initial_date = target_symbols[symbol]
-        _d_cursor = datetime.date(year = _initial_date[0], month = _initial_date[1], day = _initial_date[2])
+        _d_cursor = date(year = _initial_date[0], month = _initial_date[1], day = _initial_date[2])
     
     _set_all_dates = set()
     while _d_cursor < _d_today:
-        _set_all_dates.add(copy.copy(_d_cursor))
-        _d_cursor = _d_cursor + datetime.timedelta(days = 1)
+        _set_all_dates.add(datetime.combine(_d_cursor, time()))
+        _d_cursor = _d_cursor + timedelta(days = 1)
     
     _list_existing_files = Path("./data/").glob(f"{_symbol}_TRADES_*.parquet")
     _set_existing_dates = set()
     for _file_name in _list_existing_files:
-        _match = re.search(r'\d{4}-\d{2}-\d{2}', _file_name.name) 
+        _match = re.search(r'\d{4}-\d{2}-\d{2}', _file_name.name)
         _date_string = _match.group()
         if _date_string:
-            _set_existing_dates.add(datetime.datetime.strptime(_date_string, "%Y-%m-%d"))
-        
+            _set_existing_dates.add(datetime.strptime(_date_string, "%Y-%m-%d"))
+
     return sorted(_set_all_dates - _set_existing_dates)
 
 # 指定されたファイル名をもとに、.zipをダウンロードしてデータフレームを作り、pkl.gzとして保存する関数
 @retry(stop_max_attempt_number = 5, wait_fixed = 1000)
-def download_trades_zip(target_symbol: str = None, target_date: datetime.datetime = None) -> None:
+def download_trades_zip(target_symbol: str = None, target_date: datetime = None) -> None:
     assert target_symbol is not None
     assert target_date is not None
     
