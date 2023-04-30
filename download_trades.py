@@ -102,7 +102,7 @@ def download_trades_zip(target_symbol: str = None, target_date: datetime = None)
     Path("./data/").mkdir(parents = True, exist_ok = True)
     
     # このように一時ファイルに書き込んでからリネームしないと、ダウンロード中に強制終了した際に未完成のファイルが完全なファイルであるように見える形で残ってしまう
-    _df.write_parquet(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
+    _df.write_parquet(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet", compression="zstd")
     _tempfile = Path(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
     _tempfile.rename(f"./data/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
 
