@@ -1,6 +1,6 @@
 import os
 import polars as pl
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 import re
 import requests
@@ -21,8 +21,8 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
     assert symbol is not None
 
     _symbol = symbol.upper()
-    _d_today = date.today()
-
+    _d_lastday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    
     # スキャン開始日をBinanceでBTCUSDTが上場した日にする
     _d_cursor = date(year = 2019, month = 9, day = 8)
     if symbol in target_symbols:
@@ -30,7 +30,7 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
         _d_cursor = date(year = _initial_date[0], month = _initial_date[1], day = _initial_date[2])
     
     _set_all_dates = set()
-    while _d_cursor < _d_today:
+    while _d_cursor < _d_lastday:
         _set_all_dates.add(datetime.combine(_d_cursor, time()))
         _d_cursor = _d_cursor + timedelta(days = 1)
     
@@ -65,7 +65,6 @@ def download_trades_zip(target_symbol: str = None, target_date: datetime = None)
     
     if _r.status_code != requests.codes.ok:
         logging.error(f"From response.get({_url}), received HTTP status {_r.status_code}.")
-        time.sleep(1)
         raise Exception
     
     _csvzip = zipfile.ZipFile(BytesIO(_r.content))
@@ -102,7 +101,7 @@ def download_trades_zip(target_symbol: str = None, target_date: datetime = None)
     Path("./data/").mkdir(parents = True, exist_ok = True)
     
     # このように一時ファイルに書き込んでからリネームしないと、ダウンロード中に強制終了した際に未完成のファイルが完全なファイルであるように見える形で残ってしまう
-    _df.write_parquet(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet", compression="zstd")
+    _df.write_parquet(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet", compression="zstd", compression_level=8)
     _tempfile = Path(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
     _tempfile.rename(f"./data/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
 
@@ -127,7 +126,7 @@ def download_trade_from_binance(symbol: str = None) -> None:
     logging.info(f'{symbol}の約定履歴ファイルを{_num_files}個ダウンロードします')
     
     with tqdm_joblib(total = _num_files):
-        r = Parallel(n_jobs = -1, timeout = 60*60*24)([delayed(download_trades_zip)(_symbol, _target_dates) for _target_dates in _set_target_dates])
+        r = Parallel(n_jobs = 4, timeout = 60*60*24)([delayed(download_trades_zip)(_symbol, _target_dates) for _target_dates in _set_target_dates])
 
     return
 
