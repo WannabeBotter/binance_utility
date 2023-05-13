@@ -120,7 +120,6 @@ def calc_timebar_from_trades(idx, symbol, target_date, interval_sec):
 # Incompleteなタイムバーファイルを完成させる関数
 def finish_incomplete_timebar_files(idx, symbol, target_date, interval_sec):
     _df_incomplete_timebar = pl.read_parquet(f"{timebar_dir}/{symbol}_TIMEBAR_{interval_sec}SEC_{target_date.strftime('%Y-%m-%d')}.parquet.incomplete")
-    print(_df_incomplete_timebar)
 
     _previous_date = target_date - timedelta(days = 1)
     
@@ -149,12 +148,10 @@ def finish_incomplete_timebar_files(idx, symbol, target_date, interval_sec):
     _df_incomplete_timebar[0, "high"] = _last_close
     _df_incomplete_timebar[0, "low"] = _last_close
     _df_incomplete_timebar[0, "close"] = _last_close
-    print(_df_incomplete_timebar)
     _df_incomplete_timebar = _df_incomplete_timebar.with_columns([pl.col("open").fill_null(strategy="forward").alias("open"),
                                                                   pl.col("high").fill_null(strategy="forward").alias("high"),
                                                                   pl.col("low").fill_null(strategy="forward").alias("low"),
                                                                   pl.col("close").fill_null(strategy="forward").alias("close")])
-    print(_df_incomplete_timebar)
 
     # 並列処理している他のプロセスが書き込み途中のファイルを読み込まないように、一時ファイルに保存する
     _df_incomplete_timebar.write_parquet(f"{timebar_dir}/{symbol}_TIMEBAR_{interval_sec}SEC_{target_date.year:04}-{target_date.month:02}-{target_date.day:02}.parquet.temp")
