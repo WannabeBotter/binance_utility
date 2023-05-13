@@ -1,20 +1,21 @@
 import os
-import polars as pl
+
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 import re
+import polars as pl
 import requests
 import zipfile
 from io import BytesIO
 from joblib import Parallel, delayed
 from retrying import retry
 import argparse
-import copy
 import logging
 
 from joblib_utils import tqdm_joblib
 from constants import target_symbols
-#from exercise_util import tqdm_joblib, identify_datafiles, target_symbols
+
+trades_dir = "./trades"
 
 # ファイル保存ディレクトリの中を見て、まだダウンロードしていないデータファイル名を返す関数
 def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
@@ -34,7 +35,7 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
         _set_all_dates.add(datetime.combine(_d_cursor, time()))
         _d_cursor = _d_cursor + timedelta(days = 1)
     
-    _list_existing_files = Path("./data/").glob(f"{_symbol}_TRADES_*.parquet")
+    _list_existing_files = Path(trades_dir).glob(f"{_symbol}_TRADES_*.parquet")
     _set_existing_dates = set()
     for _file_name in _list_existing_files:
         _match = re.search(r'\d{4}-\d{2}-\d{2}', _file_name.name)
@@ -98,12 +99,12 @@ def download_trades_zip(target_symbol: str = None, target_date: datetime = None)
         raise e
     
     # Parquetファイルを書き込む
-    Path("./data/").mkdir(parents = True, exist_ok = True)
+    Path(trades_dir).mkdir(parents = True, exist_ok = True)
     
     # このように一時ファイルに書き込んでからリネームしないと、ダウンロード中に強制終了した際に未完成のファイルが完全なファイルであるように見える形で残ってしまう
-    _df.write_parquet(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet", compression="zstd", compression_level=8)
-    _tempfile = Path(f"./data/temp_{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
-    _tempfile.rename(f"./data/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
+    _df.write_parquet(f"{trades_dir}/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet.temp", compression="zstd", compression_level=8)
+    _tempfile = Path(f"{trades_dir}/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet.temp")
+    _tempfile.rename(f"{trades_dir}/{target_symbol}_TRADES_{target_date.strftime('%Y-%m-%d')}.parquet")
 
     return
     
@@ -113,12 +114,12 @@ def download_trade_from_binance(symbol: str = None) -> None:
     
     _symbol = symbol.upper()
 
-    Path("./data/").mkdir(parents = True, exist_ok = True)
+    Path(trades_dir).mkdir(parents = True, exist_ok = True)
 
     # ディレクトリ内の一時ファイル一覧を取得して削除
-    _file_list = [_file_path.name for _file_path in Path("./data/").glob("temp_*") if _file_path.is_file()]
+    _file_list = [_file_path.name for _file_path in Path(trades_dir).glob("temp_*") if _file_path.is_file()]
     for _filename in _file_list:
-        _file_obj = Path("./data/" + _filename)
+        _file_obj = Path(f"{trades_dir}/{_filename}")
         _file_obj.unlink()
     
     _set_target_dates = identify_not_yet_downloaded_dates(_symbol)  
