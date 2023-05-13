@@ -67,10 +67,10 @@ def calc_timebar_from_trades(idx, symbol, target_date, interval_sec):
          pl.col("price").last().alias("close"),
          pl.col("qty").sum().alias("volume"),
          pl.col("timestamp").count().alias("trade_count"),
-         (pl.col("signed_qty") >= 0).sum().abs().alias("market_bid_volume"),
-         (pl.col("signed_qty") < 0).sum().abs().alias("market_ask_volume"),
-         (pl.col("signed_qty") >= 0).count().alias("market_bid_count"),
-         (pl.col("signed_qty") < 0).count().alias("market_ask_count")])
+         (pl.col("signed_qty") >= 0).sum().abs().cast(pl.Int64).alias("market_bid_volume"),
+         (pl.col("signed_qty") < 0).sum().abs().cast(pl.Int64).alias("market_ask_volume"),
+         (pl.col("signed_qty") >= 0).count().cast(pl.Int64).alias("market_bid_count"),
+         (pl.col("signed_qty") < 0).count().cast(pl.Int64).alias("market_ask_count")])
     _df_timebar = _df_timebar.hstack(_df_groupby.apply(calc_weighted_statistics))
     _df_timebar = _df_timebar.with_columns([(pl.col("timestamp_bin") * pl.lit(1000 * interval_sec)).alias("timestamp"),
                                             (pl.col("close").log1p() - pl.col("open").log1p()).alias("log_diff_price"),
