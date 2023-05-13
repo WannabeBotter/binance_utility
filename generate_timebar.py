@@ -29,11 +29,11 @@ def calc_weighted_statistics(group_df):
         return np.nan
     
     _weighted_mean = group_df.select((pl.col("qty") * pl.col("price")).sum() / _sum_weights)[0, 0]
-    _weighted_var = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean)) ** 2).sum() / _sum_weights)[0, 0]
+    _weighted_var = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean) ** 2)).sum() / _sum_weights)[0, 0]
     _weighted_std = np.sqrt(_weighted_var)
     if _weighted_std != 0:
-        _weighted_skewness = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean)) ** 3).sum() / _sum_weights)[0, 0] / _weighted_std ** 3
-        _weighted_kutosis = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean)) ** 4).sum() / _sum_weights)[0, 0] / _weighted_std ** 4 - 3
+        _weighted_skewness = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean) ** 3)).sum() / _sum_weights)[0, 0] / _weighted_std ** 3
+        _weighted_kutosis = group_df.select(((pl.col("qty") * (pl.col("price") - _weighted_mean) ** 4)).sum() / _sum_weights)[0, 0] / _weighted_std ** 4 - 3
     else:
         _weighted_skewness = 0.0
         _weighted_kutosis = 0.0
@@ -66,8 +66,9 @@ def calc_timebar_from_trades(idx, symbol, target_date, interval_sec):
          pl.col("price").min().alias("low"),
          pl.col("price").last().alias("close"),
          pl.col("qty").sum().alias("volume"),
-         pl.col("signed_qty").sum().alias("signed_volume"),
          pl.col("timestamp").count().alias("trade_count"),
+         (pl.col("signed_qty") >= 0).sum().abs().alias("market_bid_volume"),
+         (pl.col("signed_qty") < 0).sum().abs().alias("market_ask_volume"),
          (pl.col("signed_qty") >= 0).count().alias("market_bid_count"),
          (pl.col("signed_qty") < 0).count().alias("market_ask_count")])
     _df_timebar = _df_timebar.hstack(_df_groupby.apply(calc_weighted_statistics))
@@ -86,8 +87,9 @@ def calc_timebar_from_trades(idx, symbol, target_date, interval_sec):
                                             pl.col("high").fill_null(pl.col("close")).alias("high"),
                                             pl.col("low").fill_null(pl.col("close")).alias("low"),
                                             pl.col("volume").fill_null(pl.lit(0)).alias("volume"),
-                                            pl.col("signed_volume").fill_null(pl.lit(0)).alias("signed_volume"),
                                             pl.col("trade_count").fill_null(pl.lit(0)).alias("trade_count"),
+                                            pl.col("market_bid_volume").fill_null(pl.lit(0)).alias("market_bid_volume"),
+                                            pl.col("market_ask_volume").fill_null(pl.lit(0)).alias("market_ask_volume"),
                                             pl.col("market_bid_count").fill_null(pl.lit(0)).alias("market_bid_count"),
                                             pl.col("market_ask_count").fill_null(pl.lit(0)).alias("market_ask_count"),
                                             pl.col("weighted_mean").fill_null(pl.lit(0)).alias("weighted_mean"),
@@ -97,7 +99,7 @@ def calc_timebar_from_trades(idx, symbol, target_date, interval_sec):
                                             pl.col("weighted_kutosis").fill_null(pl.lit(0)).alias("weighted_kutosis"),
                                             pl.col("log_diff_price").fill_null(pl.lit(0)).alias("log_diff_price"),
                                             pl.col("delta_price").fill_null(pl.lit(0)).alias("delta_price")])
-    _df_timebar = _df_timebar.select(["timestamp", "open", "high", "low", "close", "log_diff_price", "delta_price", "volume", "signed_volume", "trade_count", "market_bid_count", "market_ask_count", "weighted_mean", "weighted_var", "weighted_std", "weighted_skewness", "weighted_kutosis"])
+    _df_timebar = _df_timebar.select(["timestamp", "open", "high", "low", "close", "log_diff_price", "delta_price", "volume", "trade_count", "market_bid_volume", "market_ask_volume", "market_bid_count", "market_ask_count", "weighted_mean", "weighted_var", "weighted_std", "weighted_skewness", "weighted_kutosis"])
 
     # Parquetファイルを書き込む
     Path(timebar_dir).mkdir(parents = True, exist_ok = True)
@@ -138,7 +140,7 @@ def finish_incomplete_timebar_files(idx, symbol, target_date, interval_sec):
             print(f'ファイル {_target_file}を読み込み中に例外{e}が発生しました')
             raise e
         
-        _last_close = _df_previous_date.select(pl.col("close"))[0, 0]
+        _last_close = _df_previous_date.select(pl.col("close"))[-1, 0]
     else:
         # このファイルがこの銘柄の最初の日の記録なので、最終クローズは0とする
         _last_close = 0.0
