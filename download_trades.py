@@ -13,7 +13,7 @@ import argparse
 import logging
 
 from joblib_utils import tqdm_joblib
-from constants import target_symbols
+from constants import target_symbols, missing_dates
 
 trades_dir = "./trades"
 
@@ -34,7 +34,7 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
     while _d_cursor < _d_lastday:
         _set_all_dates.add(datetime.combine(_d_cursor, time()))
         _d_cursor = _d_cursor + timedelta(days = 1)
-    
+        
     _list_existing_files = Path(trades_dir).glob(f"{_symbol}_TRADES_*.parquet")
     _set_existing_dates = set()
     for _file_name in _list_existing_files:
@@ -42,7 +42,11 @@ def identify_not_yet_downloaded_dates(symbol: str = None) -> set:
         _date_string = _match.group()
         if _date_string:
             _set_existing_dates.add(datetime.strptime(_date_string, "%Y-%m-%d"))
-
+    
+    if _symbol in missing_dates:
+        for _missing_date in missing_dates[_symbol]:
+            _set_existing_dates.add(datetime.strptime(_missing_date, "%Y-%m-%d"))
+    
     return sorted(_set_all_dates - _set_existing_dates)
 
 # 指定されたファイル名をもとに、.zipをダウンロードしてデータフレームを作り、pkl.gzとして保存する関数
@@ -122,7 +126,7 @@ def download_trade_from_binance(symbol: str = None) -> None:
         _file_obj = Path(f"{trades_dir}/{_filename}")
         _file_obj.unlink()
     
-    _set_target_dates = identify_not_yet_downloaded_dates(_symbol)  
+    _set_target_dates = identify_not_yet_downloaded_dates(_symbol)
     _num_files = len(_set_target_dates)
     logging.info(f'{symbol}の約定履歴ファイルを{_num_files}個ダウンロードします')
     
