@@ -5,7 +5,6 @@ from scipy.optimize import curve_fit
 from sklearn.metrics import mean_squared_error
 
 def plot_correlation(series_x, series_y, func = None, func_label: str = '$y = %s x %s$', title: str = None, xaxis_label: str = 'x', yaxis_label: str = 'y', legend_loc: str = 'best'):
-
     _df = pl.DataFrame({'x': series_x, 'y': series_y}).fill_nan(None).drop_nulls()
     _corr = np.corrcoef(_df['x'], _df['y'])
     _y_std = _df['y'].std()
@@ -36,12 +35,13 @@ def plot_correlation(series_x, series_y, func = None, func_label: str = '$y = %s
         return a * x + b
     
     if func == None:
-        func = _default_func
+        _func = _default_func
+    else:
+        _func = func
     
-    _x_linspace = np.linspace(_x_min, _x_max, 50)
-    _popt, _pcov = curve_fit(func, _df['x'], _df['y'])
-    _ax.plot(_x_linspace, func(_x_linspace, *_popt), color = 'green', label = func_label % (f'{_popt[0]:.4e}',  f'{_popt[1]:+.4e}'))
-    print(f"_popt = {_popt}")
+    _x_linspace = np.linspace(_x_min, _x_max, 100)
+    _popt, _pcov = curve_fit(_func, _df['x'], _df['y'])
+    _ax.plot(_x_linspace, func(_x_linspace, *_popt), color = 'red', label = func_label % (f'{_popt[0]:.4e}',  f'{_popt[1]:+.4e}'))
 
     _y_pred = func(_df['x'], *_popt)
     _mse = mean_squared_error(_df['y'], _y_pred)
@@ -77,3 +77,5 @@ def plot_correlation(series_x, series_y, func = None, func_label: str = '$y = %s
     _ax.axhline(0, color = 'red', linestyle = 'dotted', linewidth = 1)
     
     ax[1, 1].remove()
+
+    return _popt, _pcov
